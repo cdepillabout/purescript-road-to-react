@@ -20,6 +20,7 @@ let
         my-yarn
         purescript
         spago
+        nodePackages.parcel-bundler
       ];
       buildInputs = with self; [
         zlib
