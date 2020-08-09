@@ -7,6 +7,8 @@ node_modules
 # Generated files
 .psci
 output
+dist/
+.cache/
 
 # Nix
 result
