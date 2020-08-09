@@ -21,14 +21,14 @@ let
         purescript
         spago
       ];
+      dontUnpack = true;
+      installPhase = "touch $out";
     };
   };
 
-  nixpkgs = import nixpkgsSrc (args // {
-    overlays = overlays ++ [
-      my-overlay
-    ];
-  });
+  nixpkgs = import nixpkgsSrc {
+    overlays = [ my-overlay ];
+  };
 
 in
 

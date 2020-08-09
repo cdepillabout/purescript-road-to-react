@@ -1,2 +1,2 @@
-(import ./nixpkgs).my-env
+(import ./nixpkgs.nix).my-env
 
