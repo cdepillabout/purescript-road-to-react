@@ -8,7 +8,7 @@ let
   my-overlay = self: super: {
     my-nodejs = self.nodejs-13_x;
 
-    my-yarn = super.yarn.override {
+    my-yarn = self.yarn.override {
       nodejs = self.my-nodejs;
     };
 
@@ -21,7 +21,13 @@ let
         purescript
         spago
       ];
+      buildInputs = with self; [
+        zlib
+      ];
       dontUnpack = true;
+      dontPatch = true;
+      dontConfigure = true;
+      dontBuild = true;
       installPhase = "touch $out";
     };
   };
@@ -33,9 +39,3 @@ let
 in
 
 nixpkgs
-
-# if lib.inNixShell
-# then nixpkgs.mkShell { buildInputs = [ 
-# else nixpkgs.my-env
-
-
