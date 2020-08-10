@@ -207,13 +207,14 @@ type PropsList =
 
 makeList :: Effect (Record PropsList -> JSX)
 makeList = do
+  item <- makeItem
   component "List" \{list, onRemoveItem} -> React.do
     let items =
           map
             (\story ->
               keyed
                 (show story.objectId)
-                (makeItem { item: story, onRemoveItem })
+                (item { item: story, onRemoveItem })
             )
             list
     pure (fragment items)
@@ -223,21 +224,23 @@ type PropsItem =
   , onRemoveItem :: Story -> Effect Unit
   )
 
-makeItem :: Record PropsItem -> JSX
-makeItem {item, onRemoveItem } =
-  R.div_
-    [ R.span_
-        [ R.a
-            { href: item.url
-            , children: [ R.text item.title ]
-            }
+makeItem :: Effect (Record PropsItem -> JSX)
+makeItem = do
+  component "Item" \{item, onRemoveItem} -> React.do
+    pure $
+      R.div_
+        [ R.span_
+            [ R.a
+                { href: item.url
+                , children: [ R.text item.title ]
+                }
+            ]
+        , R.span_ [ R.text item.author ]
+        , R.span_
+            [ R.button
+                { type: "button"
+                , onClick: capture_ (onRemoveItem item)
+                , children: [ R.text "Dismiss" ]
+                }
+            ]
         ]
-    , R.span_ [ R.text item.author ]
-    , R.span_
-        [ R.button
-            { type: "button"
-            , onClick: capture_ (onRemoveItem item)
-            , children: [ R.text "Dismiss" ]
-            }
-        ]
-    ]
