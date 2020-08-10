@@ -1,19 +1,19 @@
 -- This is a PureScript implementation of
 -- https://codesandbox.io/s/github/the-road-to-learn-react/hacker-stories/tree/hs/Inline-Handler-in-JSX?file=/src/App.js
 
-module App (app) where
+module App where
 
 import Prelude
 
 import Data.Array as Array
 import Data.Newtype (class Newtype)
-import Record (merge)
+import Record (merge, union)
 import Data.String as String
 import Data.String.Pattern (Pattern(Pattern))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect (Effect)
 import Effect.Console (log)
-import Prim.Row (class Lacks, class Union)
+import Prim.Row (class Lacks, class Nub, class Union)
 import React.Basic.DOM as R
 import React.Basic.Hooks (Hook, JSX, ReactChildren, ReactComponent, UseEffect, UseState, coerceHook, component, element, fragment, reactChildrenFromArray, reactChildrenToArray, reactComponent, reactComponentWithChildren, useEffect, useState)
 import React.Basic.Hooks as React
@@ -58,7 +58,7 @@ useSemiPersistentState key initialState = coerceHook React.do
 
 app :: Effect (ReactComponent {})
 app = do
-  inputWithLabel <- makeInputWithLabel
+  -- inputWithLabel <- makeInputWithLabel
 
   reactComponent "App" \props -> React.do
     searchTerm /\ setSearchTerm <- useSemiPersistentState "search" "Re"
@@ -73,43 +73,83 @@ app = do
     pure $
       R.div_
         [ R.h1_ [ R.text "My Hacker Stories" ]
-        , inputWithLabel
-            ((inputWithLabelDef
-              { children:
-                  [ R.text "yo label yo" ]
-              })
-              { value = "this is not the default value yo"
-              }
-            )
+        -- , inputWithLabel
+        --     { children:
+        --           [ R.text "yo label yo" ]
+        --     -- , value: "this is not the default value yo"
+        --     }
         , R.hr {}
         , R.text "list"
         ]
 
--- source :: forall attrs attrs_. Union attrs attrs_ Props_source => Record attrs -> JSX
+type PropsInputWithLabelReq = (children :: Array Int)
+type PropsInputWithLabelOpt = (value :: String)
+type PropsInputWithLabelAll = (children :: Array Int, value :: String)
 
-type PropsInputWithLabelReq = (children :: Array JSX)
-type PropsInputWithLabel = (value :: String | PropsInputWithLabelReq)
+inputWithLabelOptDef :: Record PropsInputWithLabelOpt
+inputWithLabelOptDef =
+  { value: "YO THIS IS THE DEFAULT VALUE"
+  }
 
-inputWithLabelDef :: Record PropsInputWithLabelReq -> Record PropsInputWithLabel
-inputWithLabelDef req =
-  merge req
-    { value: "YO THIS IS THE DEFAULT VALUE"
-    }
+class (Union left right x, Nub x merge) <=
+  Merge left right x merge
+    | left  right -> x
+    , left  right -> merge
+    , right x     -> left
+    , right merge -> left
+    , x     left  -> right
+    , merge left  -> right
+    , x -> merge
 
-makeInputWithLabel
-  :: forall props
-   . Effect (Record PropsInputWithLabel -> JSX)
-makeInputWithLabel =
-  component "InputWithLabel" \props -> React.do
-    pure $
-      fragment
-        [ R.label
-            { htmlFor: "lalala"
-            , children: props.children
-            }
-        , R.text "&nbsp;"
-        , R.input
-            { value: props.value
-            }
-        ]
+class (Merge superset subset x superset) <=
+  SupersetOf superset subset x
+    | superset subset -> x
+    , subset x -> superset
 
+blahblah
+  :: forall props allProps allPropsNubbed allReqProps
+   . Union props PropsInputWithLabelOpt allProps
+  => Nub allProps allPropsNubbed
+  => Union props PropsInputWithLabelReq allReqProps
+  => Nub allReqProps props
+  => Record props
+  -> Record PropsInputWithLabelOpt
+  -> Record allPropsNubbed
+blahblah p def = merge p def
+
+-- makeInputWithLabel
+--   :: forall props x1 x2 allProps
+--    . Merge props PropsInputWithLabelOpt x1 allProps
+--   => Merge PropsInputWithLabelReq PropsInputWithLabelOpt x2 allProps
+--   => Effect (Record props -> JSX)
+-- makeInputWithLabel =
+--   component "InputWithLabel" \props_ -> React.do
+--     let props = merge props_ inputWithLabelOptDef
+--     pure $
+--       fragment
+--         [ R.label
+--             { htmlFor: "lalala"
+--             , children: props.children
+--             }
+--         , R.text "&nbsp;"
+--         , R.input
+--             { value: props.value
+--             }
+--         ]
+
+-- makeInputWithLabel
+--   :: forall props
+--   => Union props props_ PropsInputWithLabel
+--    . Effect (Record props -> JSX)
+-- makeInputWithLabel
+--   :: forall props allProps allNubbedProps
+--    . Union props PropsInputWithLabelOpt allProps
+--   => Nub allProps allNubbedProps
+--   => Effect (Record (PropsInputWithLabelReq optProps)) -> JSX)
+-- makeInputWithLabel
+--   :: forall optProps allProps allNubbedProps allOptProps allNubbedOptProps
+--    . Union optProps PropsInputWithLabelOpt allOptProps
+--   => Nub allOptProps allNubbedOptProps
+--   => Union (PropsInputWithLabelReq optProps) PropsInputWithLabelOpt allProps
+--   => Nub allProps allNubbedProps
+--   => Effect (Record (PropsInputWithLabelReq optProps) -> JSX)
