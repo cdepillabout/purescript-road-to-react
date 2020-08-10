@@ -7,13 +7,15 @@ import Prelude
 
 import Data.Array as Array
 import Data.Newtype (class Newtype)
+import Record (merge)
 import Data.String as String
 import Data.String.Pattern (Pattern(Pattern))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect (Effect)
 import Effect.Console (log)
+import Prim.Row (class Lacks, class Union)
 import React.Basic.DOM as R
-import React.Basic.Hooks (Hook, JSX, ReactComponent, UseEffect, UseState, coerceHook, reactComponent, useEffect, useState)
+import React.Basic.Hooks (Hook, JSX, ReactChildren, ReactComponent, UseEffect, UseState, coerceHook, component, element, fragment, reactChildrenFromArray, reactChildrenToArray, reactComponent, reactComponentWithChildren, useEffect, useState)
 import React.Basic.Hooks as React
 
 type Story = { title :: String, url :: String, author :: String, objectId :: Int }
@@ -55,7 +57,9 @@ useSemiPersistentState key initialState = coerceHook React.do
 
 
 app :: Effect (ReactComponent {})
-app =
+app = do
+  inputWithLabel <- makeInputWithLabel
+
   reactComponent "App" \props -> React.do
     searchTerm /\ setSearchTerm <- useSemiPersistentState "search" "Re"
     stories /\ setStories <- useState initialStories
@@ -69,10 +73,43 @@ app =
     pure $
       R.div_
         [ R.h1_ [ R.text "My Hacker Stories" ]
-        , R.text "input with label"
+        , inputWithLabel
+            ((inputWithLabelDef
+              { children:
+                  [ R.text "yo label yo" ]
+              })
+              { value = "this is not the default value yo"
+              }
+            )
         , R.hr {}
         , R.text "list"
         ]
 
-inputWithLabel :: Int
-inputWithLabel = unit
+-- source :: forall attrs attrs_. Union attrs attrs_ Props_source => Record attrs -> JSX
+
+type PropsInputWithLabelReq = (children :: Array JSX)
+type PropsInputWithLabel = (value :: String | PropsInputWithLabelReq)
+
+inputWithLabelDef :: Record PropsInputWithLabelReq -> Record PropsInputWithLabel
+inputWithLabelDef req =
+  merge req
+    { value: "YO THIS IS THE DEFAULT VALUE"
+    }
+
+makeInputWithLabel
+  :: forall props
+   . Effect (Record PropsInputWithLabel -> JSX)
+makeInputWithLabel =
+  component "InputWithLabel" \props -> React.do
+    pure $
+      fragment
+        [ R.label
+            { htmlFor: "lalala"
+            , children: props.children
+            }
+        , R.text "&nbsp;"
+        , R.input
+            { value: props.value
+            }
+        ]
+
