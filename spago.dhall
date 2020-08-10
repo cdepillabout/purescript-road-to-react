@@ -10,6 +10,7 @@ You can edit this file as you like.
   , "console"
   , "effect"
   , "js-timers"
+  , "profunctor-lenses"
   , "psci-support"
   , "react-basic"
   , "react-basic-dom"
