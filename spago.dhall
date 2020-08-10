@@ -8,6 +8,7 @@ You can edit this file as you like.
 , dependencies =
   [ "console"
   , "effect"
+  , "js-timers"
   , "psci-support"
   , "react-basic"
   , "react-basic-dom"
