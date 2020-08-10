@@ -8,7 +8,8 @@ import Prelude
 import Control.Monad.Maybe.Trans (MaybeT(MaybeT), runMaybeT)
 import Control.Monad.Trans.Class (lift)
 import Data.Array as Array
-import Data.Maybe (Maybe, fromMaybe)
+import Data.Either (Either(Right))
+import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Monoid (guard)
 import Data.Newtype (class Newtype)
 import Data.Nullable (null, toMaybe)
@@ -17,12 +18,16 @@ import Data.String as String
 import Data.String.Pattern (Pattern(Pattern))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect (Effect)
+import Effect.Aff (Aff, makeAff)
+import Effect.Class (liftEffect)
 import Effect.Console (log)
+import Effect.Timer (setTimeout)
 import Prim.Row (class Lacks, class Nub, class Union)
 import React.Basic.DOM as R
 import React.Basic.DOM.Events (capture, capture_, targetValue)
 import React.Basic.Hooks (Hook, JSX, ReactChildren, ReactComponent, UseEffect, UseState, coerceHook, component, element, fragment, keyed, reactChildrenFromArray, reactChildrenToArray, reactComponent, reactComponentWithChildren, readRefMaybe, useEffect, useRef, useState)
 import React.Basic.Hooks as React
+import React.Basic.Hooks.Aff (useAff)
 import Web.DOM.Node (Node)
 import Web.HTML.HTMLElement (focus, fromNode)
 
@@ -59,6 +64,20 @@ initialStories =
     }
   ]
 
+getAsyncStories :: Aff (Maybe (Array Story))
+getAsyncStories = do
+  -- liftEffect $ log "In getAsyncStories, about to start timer..."
+  s <- makeAff \resHandler -> do
+    -- log "In getAsyncStories, in makeAff, about to start timer..."
+    void $ setTimeout 2000 do
+      -- log "in getAsynStories, in makeAff, in timer callback, timer is up!"
+      resHandler (Right (Just initialStories))
+      -- resHandler (Right Nothing)
+    -- log "In getAsyncStories, in makeAff, after starting timer..."
+    pure mempty
+  -- liftEffect $ log "In getAsyncStories, finishing function..."
+  pure s
+
 newtype UseSemiPersistentState hooks
     = UseSemiPersistentState (UseEffect (String /\ String) (UseState String hooks))
 
@@ -75,7 +94,6 @@ useSemiPersistentState key initialState = coerceHook React.do
   value /\ setValue <- useState initialState
 
   useEffect (value /\ key) $ do
-    log "useSemiPersistentState, useEffect, running again"
     pure mempty
 
   pure (value /\ setValue)
@@ -88,7 +106,19 @@ app = do
 
   reactComponent "App" \props -> React.do
     searchTerm /\ setSearchTerm <- useSemiPersistentState "search" "Re"
-    stories /\ setStories <- useState initialStories
+    stories /\ setStories <- useState []
+    isLoading /\ setIsLoading <- useState false
+    isError /\ setIsError <- useState false
+
+    useAff unit $ do
+      liftEffect $ setIsLoading \_ -> true
+      maybeStories <- getAsyncStories
+      case maybeStories of
+        Just stories' -> do
+          liftEffect $ setIsLoading \_ -> false
+          liftEffect $ setStories \_ -> stories'
+        Nothing ->
+          liftEffect $ setIsError \_ -> true
 
     let handleRemoveStory item = do
           let newStories =
@@ -115,10 +145,14 @@ app = do
             , isFocused: true
             }
         , R.hr {}
-        , list
-           { list: searchedStories
-           , onRemoveItem: handleRemoveStory
-           }
+        , if isError then R.p_ [ R.text "Something went wrong..." ] else mempty
+        , if isLoading
+            then R.p_ [R.text "Loading ..."]
+            else
+              list
+                { list: searchedStories
+                , onRemoveItem: handleRemoveStory
+                }
         ]
 
 type PropsInputWithLabel =
@@ -173,13 +207,14 @@ type PropsList =
 
 makeList :: Effect (Record PropsList -> JSX)
 makeList = do
+  item <- makeItem
   component "List" \{list, onRemoveItem} -> React.do
     let items =
           map
             (\story ->
               keyed
                 (show story.objectId)
-                (makeItem { item: story, onRemoveItem })
+                (item { item: story, onRemoveItem })
             )
             list
     pure (fragment items)
@@ -189,21 +224,23 @@ type PropsItem =
   , onRemoveItem :: Story -> Effect Unit
   )
 
-makeItem :: Record PropsItem -> JSX
-makeItem {item, onRemoveItem } =
-  R.div_
-    [ R.span_
-        [ R.a
-            { href: item.url
-            , children: [ R.text item.title ]
-            }
+makeItem :: Effect (Record PropsItem -> JSX)
+makeItem = do
+  component "Item" \{item, onRemoveItem} -> React.do
+    pure $
+      R.div_
+        [ R.span_
+            [ R.a
+                { href: item.url
+                , children: [ R.text item.title ]
+                }
+            ]
+        , R.span_ [ R.text item.author ]
+        , R.span_
+            [ R.button
+                { type: "button"
+                , onClick: capture_ (onRemoveItem item)
+                , children: [ R.text "Dismiss" ]
+                }
+            ]
         ]
-    , R.span_ [ R.text item.author ]
-    , R.span_
-        [ R.button
-            { type: "button"
-            , onClick: capture_ (onRemoveItem item)
-            , children: [ R.text "Dismiss" ]
-            }
-        ]
-    ]
