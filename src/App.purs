@@ -9,7 +9,7 @@ import Control.Monad.Maybe.Trans (MaybeT(MaybeT), runMaybeT)
 import Control.Monad.Trans.Class (lift)
 import Data.Array as Array
 import Data.Either (Either(Right))
-import Data.Maybe (Maybe, fromMaybe)
+import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Monoid (guard)
 import Data.Newtype (class Newtype)
 import Data.Nullable (null, toMaybe)
@@ -64,14 +64,15 @@ initialStories =
     }
   ]
 
-getAsyncStories :: Aff (Array Story)
+getAsyncStories :: Aff (Maybe (Array Story))
 getAsyncStories = do
   -- liftEffect $ log "In getAsyncStories, about to start timer..."
   s <- makeAff \resHandler -> do
     -- log "In getAsyncStories, in makeAff, about to start timer..."
     void $ setTimeout 2000 do
       -- log "in getAsynStories, in makeAff, in timer callback, timer is up!"
-      resHandler (Right initialStories)
+      resHandler (Right (Just initialStories))
+      -- resHandler (Right Nothing)
     -- log "In getAsyncStories, in makeAff, after starting timer..."
     pure mempty
   -- liftEffect $ log "In getAsyncStories, finishing function..."
@@ -106,10 +107,18 @@ app = do
   reactComponent "App" \props -> React.do
     searchTerm /\ setSearchTerm <- useSemiPersistentState "search" "Re"
     stories /\ setStories <- useState []
+    isLoading /\ setIsLoading <- useState false
+    isError /\ setIsError <- useState false
 
     useAff unit $ do
-      stories' <- getAsyncStories
-      liftEffect $ setStories \_ -> stories'
+      liftEffect $ setIsLoading \_ -> true
+      maybeStories <- getAsyncStories
+      case maybeStories of
+        Just stories' -> do
+          liftEffect $ setIsLoading \_ -> false
+          liftEffect $ setStories \_ -> stories'
+        Nothing ->
+          liftEffect $ setIsError \_ -> true
 
     let handleRemoveStory item = do
           let newStories =
@@ -136,10 +145,14 @@ app = do
             , isFocused: true
             }
         , R.hr {}
-        , list
-           { list: searchedStories
-           , onRemoveItem: handleRemoveStory
-           }
+        , if isError then R.p_ [ R.text "Something went wrong..." ] else mempty
+        , if isLoading
+            then R.p_ [R.text "Loading ..."]
+            else
+              list
+                { list: searchedStories
+                , onRemoveItem: handleRemoveStory
+                }
         ]
 
 type PropsInputWithLabel =
