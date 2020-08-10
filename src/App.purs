@@ -8,6 +8,7 @@ import Prelude
 import Control.Monad.Maybe.Trans (MaybeT(MaybeT), runMaybeT)
 import Control.Monad.Trans.Class (lift)
 import Data.Array as Array
+import Data.Either (Either(Right))
 import Data.Maybe (Maybe, fromMaybe)
 import Data.Monoid (guard)
 import Data.Newtype (class Newtype)
@@ -17,12 +18,16 @@ import Data.String as String
 import Data.String.Pattern (Pattern(Pattern))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect (Effect)
+import Effect.Aff (Aff, makeAff)
+import Effect.Class (liftEffect)
 import Effect.Console (log)
+import Effect.Timer (setTimeout)
 import Prim.Row (class Lacks, class Nub, class Union)
 import React.Basic.DOM as R
 import React.Basic.DOM.Events (capture, capture_, targetValue)
 import React.Basic.Hooks (Hook, JSX, ReactChildren, ReactComponent, UseEffect, UseState, coerceHook, component, element, fragment, keyed, reactChildrenFromArray, reactChildrenToArray, reactComponent, reactComponentWithChildren, readRefMaybe, useEffect, useRef, useState)
 import React.Basic.Hooks as React
+import React.Basic.Hooks.Aff (useAff)
 import Web.DOM.Node (Node)
 import Web.HTML.HTMLElement (focus, fromNode)
 
@@ -59,6 +64,19 @@ initialStories =
     }
   ]
 
+getAsyncStories :: Aff (Array Story)
+getAsyncStories = do
+  -- liftEffect $ log "In getAsyncStories, about to start timer..."
+  s <- makeAff \resHandler -> do
+    -- log "In getAsyncStories, in makeAff, about to start timer..."
+    void $ setTimeout 2000 do
+      -- log "in getAsynStories, in makeAff, in timer callback, timer is up!"
+      resHandler (Right initialStories)
+    -- log "In getAsyncStories, in makeAff, after starting timer..."
+    pure mempty
+  -- liftEffect $ log "In getAsyncStories, finishing function..."
+  pure s
+
 newtype UseSemiPersistentState hooks
     = UseSemiPersistentState (UseEffect (String /\ String) (UseState String hooks))
 
@@ -75,7 +93,6 @@ useSemiPersistentState key initialState = coerceHook React.do
   value /\ setValue <- useState initialState
 
   useEffect (value /\ key) $ do
-    log "useSemiPersistentState, useEffect, running again"
     pure mempty
 
   pure (value /\ setValue)
@@ -88,7 +105,11 @@ app = do
 
   reactComponent "App" \props -> React.do
     searchTerm /\ setSearchTerm <- useSemiPersistentState "search" "Re"
-    stories /\ setStories <- useState initialStories
+    stories /\ setStories <- useState []
+
+    useAff unit $ do
+      stories' <- getAsyncStories
+      liftEffect $ setStories \_ -> stories'
 
     let handleRemoveStory item = do
           let newStories =
