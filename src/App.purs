@@ -5,9 +5,13 @@ module App where
 
 import Prelude
 
+import Control.Monad.Maybe.Trans (MaybeT(MaybeT), runMaybeT)
+import Control.Monad.Trans.Class (lift)
 import Data.Array as Array
-import Data.Maybe (Maybe)
+import Data.Maybe (Maybe, fromMaybe)
+import Data.Monoid (guard)
 import Data.Newtype (class Newtype)
+import Data.Nullable (null, toMaybe)
 import Record (merge, nub, union)
 import Data.String as String
 import Data.String.Pattern (Pattern(Pattern))
@@ -16,15 +20,28 @@ import Effect (Effect)
 import Effect.Console (log)
 import Prim.Row (class Lacks, class Nub, class Union)
 import React.Basic.DOM as R
-import React.Basic.DOM.Events (capture, targetValue)
-import React.Basic.Hooks (Hook, JSX, ReactChildren, ReactComponent, UseEffect, UseState, coerceHook, component, element, fragment, reactChildrenFromArray, reactChildrenToArray, reactComponent, reactComponentWithChildren, useEffect, useState)
+import React.Basic.DOM.Events (capture, capture_, targetValue)
+import React.Basic.Hooks (Hook, JSX, ReactChildren, ReactComponent, UseEffect, UseState, coerceHook, component, element, fragment, keyed, reactChildrenFromArray, reactChildrenToArray, reactComponent, reactComponentWithChildren, readRefMaybe, useEffect, useRef, useState)
 import React.Basic.Hooks as React
+import Web.DOM.Node (Node)
+import Web.HTML.HTMLElement (focus, fromNode)
+
+-------------
+-- Helpers --
+-------------
 
 class (Union inputProps optProps x, Nub x allProps) <=
   InputProps inputProps optProps allProps x
 
 instance inputPropsC :: (Union inputProps optProps x, Nub x allProps) =>
   InputProps inputProps optProps allProps x
+
+liftMaybe :: forall m a. Applicative m => Maybe a -> MaybeT m a
+liftMaybe = MaybeT <<< pure
+
+---------
+-- App --
+---------
 
 type Story = { title :: String, url :: String, author :: String, objectId :: Int }
 
@@ -67,38 +84,52 @@ useSemiPersistentState key initialState = coerceHook React.do
 app :: Effect (ReactComponent {})
 app = do
   inputWithLabel <- makeInputWithLabel
+  list <- makeList
 
   reactComponent "App" \props -> React.do
     searchTerm /\ setSearchTerm <- useSemiPersistentState "search" "Re"
     stories /\ setStories <- useState initialStories
 
-    let searchedStories =
+    let handleRemoveStory item = do
+          let newStories =
+                Array.filter (\story -> item.objectId /= story.objectId) stories
+          setStories \_ -> newStories
+
+        handleSearch eventTargetValue =
+          setSearchTerm \_ -> fromMaybe "" eventTargetValue
+
+        searchedStories =
           Array.filter
             (\story -> String.contains (Pattern searchTerm) story.title)
             stories
 
-    -- pure (R.text (show searchedStories))
     pure $
       R.div_
         [ R.h1_ [ R.text "My Hacker Stories" ]
         , inputWithLabel
             { children:
-                  [ R.text "yo label yo" ]
+                  [ R.text "Search:" ]
             , id: "search"
-            , value: "this is not the default value yo"
-            , onInputChange: \x -> log ("HELLLLLOOOOLLLLL 22222: " <> show x)
+            , value: searchTerm
+            , onInputChange: handleSearch
+            , isFocused: true
             }
         , R.hr {}
-        , R.text "list"
+        , list
+           { list: searchedStories
+           , onRemoveItem: handleRemoveStory
+           }
         ]
 
 type PropsInputWithLabel =
-  ( id :: String
-  , children :: Array JSX
+  ( children :: Array JSX
+  , id :: String
+  , isFocused :: Boolean
   , onInputChange :: Maybe String -> Effect Unit
+  , value :: String
   | PropsInputWithLabelOpt
   )
-type PropsInputWithLabelOpt = (value :: String)
+type PropsInputWithLabelOpt = (type_ :: String)
 
 makeInputWithLabel
   :: forall props x
@@ -106,8 +137,19 @@ makeInputWithLabel
   => Effect (Record props -> JSX)
 makeInputWithLabel =
   component "InputWithLabel" \props_ -> React.do
-    let def = { value: "YO THIS IS THE DEFAULT VALUE" }
-        { id, children, onInputChange, value } = merge props_ def
+    let def = { type_: "text" }
+        { children, id, isFocused, onInputChange, type_, value } = merge props_ def
+
+    inputRef <- useRef null
+
+    useEffect isFocused $
+      guard isFocused $ do
+        void $ runMaybeT $ do
+          (node :: Node) <- MaybeT $ readRefMaybe inputRef
+          htmlElem <- liftMaybe $ fromNode node
+          lift (focus htmlElem)
+        pure (pure unit)
+
     pure $
       fragment
         [ R.label
@@ -117,24 +159,51 @@ makeInputWithLabel =
         , R.text "&nbsp;"
         , R.input
             { id
-            , value
             , onChange: capture targetValue onInputChange
+            , ref: inputRef
+            , type: type_
+            , value
             }
         ]
 
--- makeInputWithLabel
---   :: forall props
---   => Union props props_ PropsInputWithLabel
---    . Effect (Record props -> JSX)
--- makeInputWithLabel
---   :: forall props allProps allNubbedProps
---    . Union props PropsInputWithLabelOpt allProps
---   => Nub allProps allNubbedProps
---   => Effect (Record (PropsInputWithLabelReq optProps)) -> JSX)
--- makeInputWithLabel
---   :: forall optProps allProps allNubbedProps allOptProps allNubbedOptProps
---    . Union optProps PropsInputWithLabelOpt allOptProps
---   => Nub allOptProps allNubbedOptProps
---   => Union (PropsInputWithLabelReq optProps) PropsInputWithLabelOpt allProps
---   => Nub allProps allNubbedProps
---   => Effect (Record (PropsInputWithLabelReq optProps) -> JSX)
+type PropsList =
+  ( list :: Array Story
+  , onRemoveItem :: Story -> Effect Unit
+  )
+
+makeList :: Effect (Record PropsList -> JSX)
+makeList = do
+  component "List" \{list, onRemoveItem} -> React.do
+    let items =
+          map
+            (\story ->
+              keyed
+                (show story.objectId)
+                (makeItem { item: story, onRemoveItem })
+            )
+            list
+    pure (fragment items)
+
+type PropsItem =
+  ( item :: Story
+  , onRemoveItem :: Story -> Effect Unit
+  )
+
+makeItem :: Record PropsItem -> JSX
+makeItem {item, onRemoveItem } =
+  R.div_
+    [ R.span_
+        [ R.a
+            { href: item.url
+            , children: [ R.text item.title ]
+            }
+        ]
+    , R.span_ [ R.text item.author ]
+    , R.span_
+        [ R.button
+            { type: "button"
+            , onClick: capture_ (onRemoveItem item)
+            , children: [ R.text "Dismiss" ]
+            }
+        ]
+    ]
