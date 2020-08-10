@@ -87,7 +87,6 @@ useSemiPersistentState
   :: String
   -> String
   -> Hook
-      -- (UseEffect (String /\ String) (UseState String))
       UseSemiPersistentState
       (String /\ ((String -> String) -> Effect Unit))
 useSemiPersistentState key initialState = coerceHook React.do
@@ -99,15 +98,28 @@ useSemiPersistentState key initialState = coerceHook React.do
   pure (value /\ setValue)
 
 data StoriesAction
-  = SetStories (Array Story)
+  = StoriesFetchInit
+  | StoriesFetchSuccess (Array Story)
+  | StoriesFetchFailure
   | RemoveStory Story
 
-storiesReducerFun :: Array Story -> StoriesAction -> Array Story
-storiesReducerFun oldStories =
+storiesReducerFun
+  :: { data :: Array Story, isLoading :: Boolean, isError :: Boolean }
+  -> StoriesAction
+  -> { data :: Array Story, isLoading :: Boolean, isError :: Boolean }
+storiesReducerFun state =
   case _ of
-    SetStories newStories -> newStories
+    StoriesFetchInit -> state { isLoading = true, isError = false }
+    StoriesFetchSuccess newStories ->
+      state { isLoading = false, isError = false, data = newStories }
+    StoriesFetchFailure -> state { isLoading = false, isError = true }
     RemoveStory storyToRemove ->
-      Array.filter (\story -> storyToRemove.objectId /= story.objectId) oldStories
+      state
+        { data =
+            Array.filter
+              (\story -> storyToRemove.objectId /= story.objectId)
+              state.data
+        }
 
 app :: Effect (ReactComponent {})
 app = do
@@ -117,19 +129,19 @@ app = do
 
   reactComponent "App" \props -> React.do
     searchTerm /\ setSearchTerm <- useSemiPersistentState "search" "Re"
-    stories /\ dispatchStories <- useReducer [] storiesReducer
-    isLoading /\ setIsLoading <- useState false
-    isError /\ setIsError <- useState false
+    stories /\ dispatchStories <-
+      useReducer
+        { data: [], isLoading: false, isError: false }
+        storiesReducer
 
     useAff unit $ do
-      liftEffect $ setIsLoading \_ -> true
+      liftEffect $ dispatchStories StoriesFetchInit
       maybeStories <- getAsyncStories
       case maybeStories of
         Just stories' -> do
-          liftEffect $ setIsLoading \_ -> false
-          liftEffect $ dispatchStories (SetStories stories')
+          liftEffect $ dispatchStories (StoriesFetchSuccess stories')
         Nothing ->
-          liftEffect $ setIsError \_ -> true
+          liftEffect $ dispatchStories StoriesFetchFailure
 
     let handleRemoveStory story =
           dispatchStories (RemoveStory story)
@@ -140,7 +152,7 @@ app = do
         searchedStories =
           Array.filter
             (\story -> String.contains (Pattern searchTerm) story.title)
-            stories
+            stories.data
 
     pure $
       R.div_
@@ -154,8 +166,8 @@ app = do
             , isFocused: true
             }
         , R.hr {}
-        , if isError then R.p_ [ R.text "Something went wrong..." ] else mempty
-        , if isLoading
+        , if stories.isError then R.p_ [ R.text "Something went wrong..." ] else mempty
+        , if stories.isLoading
             then R.p_ [R.text "Loading ..."]
             else
               list
