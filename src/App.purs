@@ -134,12 +134,10 @@ app = do
       eitherResp <- get json (apiEndpoint <> "react")
       case eitherResp of
         Right resp -> do
-          liftEffect $ log (stringify resp.body)
           let maybeObj = resp.body ^? _Object
               (maybeStories :: List (Maybe Story)) =
                 maybeObj ^.. traversed <<< ix "hits" <<< _Array <<< traversed <<< to jsonToStory
               stories' = mapMaybe identity $ toUnfoldable maybeStories
-          liftEffect $ log $ "got stories: " <> show stories'
           liftEffect $ dispatchStories (StoriesFetchSuccess stories')
         Left _ ->
           liftEffect $ dispatchStories StoriesFetchFailure
