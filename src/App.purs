@@ -25,7 +25,7 @@ import Effect.Timer (setTimeout)
 import Prim.Row (class Lacks, class Nub, class Union)
 import React.Basic.DOM as R
 import React.Basic.DOM.Events (capture, capture_, targetValue)
-import React.Basic.Hooks (Hook, JSX, ReactChildren, ReactComponent, UseEffect, UseState, coerceHook, component, element, fragment, keyed, reactChildrenFromArray, reactChildrenToArray, reactComponent, reactComponentWithChildren, readRefMaybe, useEffect, useRef, useState)
+import React.Basic.Hooks (Hook, JSX, ReactChildren, ReactComponent, UseEffect, UseState, coerceHook, component, element, fragment, keyed, mkReducer, reactChildrenFromArray, reactChildrenToArray, reactComponent, reactComponentWithChildren, readRefMaybe, useEffect, useReducer, useRef, useState)
 import React.Basic.Hooks as React
 import React.Basic.Hooks.Aff (useAff)
 import Web.DOM.Node (Node)
@@ -98,15 +98,26 @@ useSemiPersistentState key initialState = coerceHook React.do
 
   pure (value /\ setValue)
 
+data StoriesAction
+  = SetStories (Array Story)
+  | RemoveStory Story
+
+storiesReducerFun :: Array Story -> StoriesAction -> Array Story
+storiesReducerFun oldStories =
+  case _ of
+    SetStories newStories -> newStories
+    RemoveStory storyToRemove ->
+      Array.filter (\story -> storyToRemove.objectId /= story.objectId) oldStories
 
 app :: Effect (ReactComponent {})
 app = do
   inputWithLabel <- makeInputWithLabel
   list <- makeList
+  storiesReducer <- mkReducer storiesReducerFun
 
   reactComponent "App" \props -> React.do
     searchTerm /\ setSearchTerm <- useSemiPersistentState "search" "Re"
-    stories /\ setStories <- useState []
+    stories /\ dispatchStories <- useReducer [] storiesReducer
     isLoading /\ setIsLoading <- useState false
     isError /\ setIsError <- useState false
 
@@ -116,14 +127,12 @@ app = do
       case maybeStories of
         Just stories' -> do
           liftEffect $ setIsLoading \_ -> false
-          liftEffect $ setStories \_ -> stories'
+          liftEffect $ dispatchStories (SetStories stories')
         Nothing ->
           liftEffect $ setIsError \_ -> true
 
-    let handleRemoveStory item = do
-          let newStories =
-                Array.filter (\story -> item.objectId /= story.objectId) stories
-          setStories \_ -> newStories
+    let handleRemoveStory story =
+          dispatchStories (RemoveStory story)
 
         handleSearch eventTargetValue =
           setSearchTerm \_ -> fromMaybe "" eventTargetValue
