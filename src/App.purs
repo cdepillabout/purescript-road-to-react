@@ -5,10 +5,19 @@ module App where
 
 import Prelude
 
+import Affjax (get)
+import Affjax.ResponseFormat (json)
 import Control.Monad.Maybe.Trans (MaybeT(MaybeT), runMaybeT)
 import Control.Monad.Trans.Class (lift)
+import Data.Argonaut.Core (Json, stringify)
+import Data.Argonaut.Prisms (_Array, _Number, _Object, _String)
+import Data.Array (mapMaybe)
 import Data.Array as Array
-import Data.Either (Either(Right))
+import Data.Either (Either(Left, Right))
+import Data.Int (fromString)
+import Data.Lens (Fold', (^?), (^.), (^..), to, traversed)
+import Data.Lens.Index (ix)
+import Data.List (List, toUnfoldable)
 import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Monoid (guard)
 import Data.Newtype (class Newtype)
@@ -22,6 +31,7 @@ import Effect.Aff (Aff, makeAff)
 import Effect.Class (liftEffect)
 import Effect.Console (log)
 import Effect.Timer (setTimeout)
+import Foreign.Object (Object)
 import Prim.Row (class Lacks, class Nub, class Union)
 import React.Basic.DOM as R
 import React.Basic.DOM.Events (capture, capture_, targetValue)
@@ -50,33 +60,18 @@ liftMaybe = MaybeT <<< pure
 
 type Story = { title :: String, url :: String, author :: String, objectId :: Int }
 
-initialStories :: Array Story
-initialStories =
-  [ { title: "React"
-    , url: "https://reactjs.org/"
-    , author: "Jordan Walke"
-    , objectId: 0
-    }
-  , { title: "Redux"
-    , url: "https://redux.js.org/"
-    , author: "Dan Abramov, Andrew Clark"
-    , objectId: 1
-    }
-  ]
+jsonToStory :: Json -> Maybe Story
+jsonToStory storyJson = do
+  storyObj <- storyJson ^? _Object
+  title <- storyObj ^? ix "title" <<< _String
+  url <- storyObj ^? ix "url" <<< _String
+  author <- storyObj ^? ix "author" <<< _String
+  maybeObjectId <- storyObj ^? ix "objectID" <<< _String <<< to fromString
+  objectId <- maybeObjectId
+  pure ({ title, url, author, objectId } :: Story)
 
-getAsyncStories :: Aff (Maybe (Array Story))
-getAsyncStories = do
-  -- liftEffect $ log "In getAsyncStories, about to start timer..."
-  s <- makeAff \resHandler -> do
-    -- log "In getAsyncStories, in makeAff, about to start timer..."
-    void $ setTimeout 2000 do
-      -- log "in getAsynStories, in makeAff, in timer callback, timer is up!"
-      resHandler (Right (Just initialStories))
-      -- resHandler (Right Nothing)
-    -- log "In getAsyncStories, in makeAff, after starting timer..."
-    pure mempty
-  -- liftEffect $ log "In getAsyncStories, finishing function..."
-  pure s
+apiEndpoint :: String
+apiEndpoint = "https://hn.algolia.com/api/v1/search?query="
 
 newtype UseSemiPersistentState hooks
     = UseSemiPersistentState (UseEffect (String /\ String) (UseState String hooks))
@@ -136,11 +131,17 @@ app = do
 
     useAff unit $ do
       liftEffect $ dispatchStories StoriesFetchInit
-      maybeStories <- getAsyncStories
-      case maybeStories of
-        Just stories' -> do
+      eitherResp <- get json (apiEndpoint <> "react")
+      case eitherResp of
+        Right resp -> do
+          liftEffect $ log (stringify resp.body)
+          let maybeObj = resp.body ^? _Object
+              (maybeStories :: List (Maybe Story)) =
+                maybeObj ^.. traversed <<< ix "hits" <<< _Array <<< traversed <<< to jsonToStory
+              stories' = mapMaybe identity $ toUnfoldable maybeStories
+          liftEffect $ log $ "got stories: " <> show stories'
           liftEffect $ dispatchStories (StoriesFetchSuccess stories')
-        Nothing ->
+        Left _ ->
           liftEffect $ dispatchStories StoriesFetchFailure
 
     let handleRemoveStory story =
