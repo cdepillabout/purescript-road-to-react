@@ -7,6 +7,7 @@ You can edit this file as you like.
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
 , dependencies =
   [ "affjax"
+  , "argonaut-traversals"
   , "console"
   , "effect"
   , "js-timers"
