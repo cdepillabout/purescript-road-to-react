@@ -7,7 +7,7 @@ import Prelude
 
 import Data.Array as Array
 import Data.Newtype (class Newtype)
-import Record (merge, union)
+import Record (merge, nub, union)
 import Data.String as String
 import Data.String.Pattern (Pattern(Pattern))
 import Data.Tuple.Nested ((/\), type (/\))
@@ -82,40 +82,89 @@ app = do
         , R.text "list"
         ]
 
-type PropsInputWithLabelReq = (children :: Array Int)
-type PropsInputWithLabelOpt = (value :: String)
-type PropsInputWithLabelAll = (children :: Array Int, value :: String)
+-- type PropsInputWithLabelReq = (children :: Array Int)
+-- type PropsInputWithLabelOpt = (value :: String)
+-- type PropsInputWithLabelAll = (children :: Array Int, value :: String)
+
+-- inputWithLabelOptDef :: Record PropsInputWithLabelOpt
+-- inputWithLabelOptDef =
+--   { value: "YO THIS IS THE DEFAULT VALUE"
+--   }
+
+-- class (Union left right x, Nub x merge) <=
+--   Merge left right x merge
+--     | left  right -> x
+--     , left  right -> merge
+--     , right x     -> left
+--     , right merge -> left
+--     , x     left  -> right
+--     , merge left  -> right
+--     , x -> merge
+
+-- class (Merge superset subset x superset) <=
+--   SupersetOf superset subset x
+--     | superset subset -> x
+--     , subset x -> superset
+
+-- blahblah
+--   :: forall props allProps allPropsNubbed allReqProps
+--    . Union props PropsInputWithLabelOpt allProps
+--   => Nub allProps allPropsNubbed
+
+--   => Union props PropsInputWithLabelReq allReqProps
+--   => Nub allReqProps props
+
+--   => Record props
+--   -> Record PropsInputWithLabelOpt
+--   -> Record allPropsNubbed
+-- blahblah p def = merge p def
+
+-- type PropsInputWithLabelReq r = (children :: Array Int | r)
+-- type PropsInputWithLabelOpt = (value :: String)
+-- type PropsInputWithLabelAll = PropsInputWithLabelReq PropsInputWithLabelOpt
+
+-- inputWithLabelOptDef :: Record PropsInputWithLabelOpt
+-- inputWithLabelOptDef =
+--   { value: "YO THIS IS THE DEFAULT VALUE"
+--   }
+
+-- blahblah
+--   -- :: forall r allOptProps allProps allPropsNubbed
+--    -- . Union r PropsInputWithLabelOpt allOptProps
+--   -- => Nub allOptProps PropsInputWithLabelOpt
+
+--   -- => Union (PropsInputWithLabelReq r) PropsInputWithLabelOpt allProps
+--   -- => Nub allProps PropsInputWithLabelAll
+
+--   :: forall r x2
+--    . Union (PropsInputWithLabelReq r) PropsInputWithLabelOpt x2
+--   => Nub x2 PropsInputWithLabelAll
+--   => Record (PropsInputWithLabelReq r)
+--   -> Record PropsInputWithLabelAll
+-- blahblah p =
+--   let bbbb =
+--         union p
+--           :: Union (PropsInputWithLabelReq r) PropsInputWithLabelOpt x2
+--           => Record PropsInputWithLabelOpt
+--           -> Record x2
+--       vvvv = bbbb inputWithLabelOptDef :: Record x2
+--   in nub vvvv
 
 inputWithLabelOptDef :: Record PropsInputWithLabelOpt
 inputWithLabelOptDef =
   { value: "YO THIS IS THE DEFAULT VALUE"
   }
 
-class (Union left right x, Nub x merge) <=
-  Merge left right x merge
-    | left  right -> x
-    , left  right -> merge
-    , right x     -> left
-    , right merge -> left
-    , x     left  -> right
-    , merge left  -> right
-    , x -> merge
-
-class (Merge superset subset x superset) <=
-  SupersetOf superset subset x
-    | superset subset -> x
-    , subset x -> superset
+type PropsInputWithLabel = (children :: Array Int | PropsInputWithLabelOpt)
+type PropsInputWithLabelOpt = (value :: String)
 
 blahblah
-  :: forall props allProps allPropsNubbed allReqProps
-   . Union props PropsInputWithLabelOpt allProps
-  => Nub allProps allPropsNubbed
-  => Union props PropsInputWithLabelReq allReqProps
-  => Nub allReqProps props
+  :: forall props allInputProps
+   . Union props PropsInputWithLabelOpt allInputProps
+  => Nub allInputProps PropsInputWithLabel
   => Record props
-  -> Record PropsInputWithLabelOpt
-  -> Record allPropsNubbed
-blahblah p def = merge p def
+  -> Record PropsInputWithLabel
+blahblah p = merge p inputWithLabelOptDef
 
 -- makeInputWithLabel
 --   :: forall props x1 x2 allProps
