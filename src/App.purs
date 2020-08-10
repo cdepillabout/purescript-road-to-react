@@ -18,6 +18,12 @@ import React.Basic.DOM as R
 import React.Basic.Hooks (Hook, JSX, ReactChildren, ReactComponent, UseEffect, UseState, coerceHook, component, element, fragment, reactChildrenFromArray, reactChildrenToArray, reactComponent, reactComponentWithChildren, useEffect, useState)
 import React.Basic.Hooks as React
 
+class (Union inputProps optProps x, Nub x allProps) <=
+  InputProps inputProps optProps allProps x
+
+instance inputPropsC :: (Union inputProps optProps x, Nub x allProps) =>
+  InputProps inputProps optProps allProps x
+
 type Story = { title :: String, url :: String, author :: String, objectId :: Int }
 
 initialStories :: Array Story
@@ -58,7 +64,7 @@ useSemiPersistentState key initialState = coerceHook React.do
 
 app :: Effect (ReactComponent {})
 app = do
-  -- inputWithLabel <- makeInputWithLabel
+  inputWithLabel <- makeInputWithLabel
 
   reactComponent "App" \props -> React.do
     searchTerm /\ setSearchTerm <- useSemiPersistentState "search" "Re"
@@ -73,11 +79,12 @@ app = do
     pure $
       R.div_
         [ R.h1_ [ R.text "My Hacker Stories" ]
-        -- , inputWithLabel
-        --     { children:
-        --           [ R.text "yo label yo" ]
-        --     -- , value: "this is not the default value yo"
-        --     }
+        , inputWithLabel
+            { children:
+                  [ R.text "yo label yo" ]
+            , id: "search"
+            , value: "this is not the default value yo"
+            }
         , R.hr {}
         , R.text "list"
         ]
@@ -150,41 +157,61 @@ app = do
 --       vvvv = bbbb inputWithLabelOptDef :: Record x2
 --   in nub vvvv
 
-inputWithLabelOptDef :: Record PropsInputWithLabelOpt
-inputWithLabelOptDef =
-  { value: "YO THIS IS THE DEFAULT VALUE"
-  }
+-- inputWithLabelOptDef :: Record PropsInputWithLabelOpt
+-- inputWithLabelOptDef =
+--   { value: "YO THIS IS THE DEFAULT VALUE"
+--   }
 
-type PropsInputWithLabel = (children :: Array Int | PropsInputWithLabelOpt)
+-- type PropsInputWithLabel = (children :: Array Int | PropsInputWithLabelOpt)
+-- type PropsInputWithLabelOpt = (value :: String)
+
+-- class (Union left right x, Nub x merge) <=
+--   Merge left right x merge
+--     | left  right -> x
+--     , left  right -> merge
+--     , right x     -> left
+--     , right merge -> left
+--     , x     left  -> right
+--     , merge left  -> right
+--     , x -> merge
+
+-- blahblah
+--   :: forall props allInputProps
+--    . Union props PropsInputWithLabelOpt allInputProps
+--   => Nub allInputProps PropsInputWithLabel
+--   => Record props
+--   -> Record PropsInputWithLabel
+-- blahblah p = merge p inputWithLabelOptDef
+
+type PropsInputWithLabel =
+  ( id :: String
+  , children :: Array JSX
+  | PropsInputWithLabelOpt
+  )
 type PropsInputWithLabelOpt = (value :: String)
 
-blahblah
-  :: forall props allInputProps
-   . Union props PropsInputWithLabelOpt allInputProps
-  => Nub allInputProps PropsInputWithLabel
-  => Record props
-  -> Record PropsInputWithLabel
-blahblah p = merge p inputWithLabelOptDef
-
--- makeInputWithLabel
---   :: forall props x1 x2 allProps
---    . Merge props PropsInputWithLabelOpt x1 allProps
---   => Merge PropsInputWithLabelReq PropsInputWithLabelOpt x2 allProps
---   => Effect (Record props -> JSX)
--- makeInputWithLabel =
---   component "InputWithLabel" \props_ -> React.do
---     let props = merge props_ inputWithLabelOptDef
---     pure $
---       fragment
---         [ R.label
---             { htmlFor: "lalala"
---             , children: props.children
---             }
---         , R.text "&nbsp;"
---         , R.input
---             { value: props.value
---             }
---         ]
+makeInputWithLabel
+  :: forall props x
+   . InputProps props PropsInputWithLabelOpt PropsInputWithLabel x
+  => Effect (Record props -> JSX)
+makeInputWithLabel =
+  component "InputWithLabel" \props_ -> React.do
+    let def =
+          { value: "YO THIS IS THE DEFAULT VALUE"
+          }
+        { id, children, value } = merge props_ def
+    pure $
+      fragment
+        [ R.label
+            { htmlFor: id
+            , children: children
+            }
+        , R.text "&nbsp;"
+        , R.input
+            { id
+            , value
+            }
+        ]
 
 -- makeInputWithLabel
 --   :: forall props
