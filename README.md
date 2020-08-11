@@ -33,3 +33,13 @@ $ spago build
 # Run Parcel to handle the CommonJS modules.
 $ parcel index.html
 ```
+
+`parcel` serves the app on `0.0.0.0:1234`.
+
+If you want to do development interactively, you can start `spago` in one
+terminal with a command line `spago build --watch`, and then start `parcel` in
+another terminal.  `parcel` sometimes gets autoreloading correct, but sometimes
+you explicitly have to refresh the browser window to see changes.
+
+If you don't want to use Nix, it should be possible to install `spago`, the
+PureScript compiler, and Parcel with NPM/yarn.
