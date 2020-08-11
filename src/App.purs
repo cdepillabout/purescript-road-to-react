@@ -129,29 +129,25 @@ app = do
         { data: [], isLoading: false, isError: false }
         storiesReducer
 
-    useAff unit $ do
-      liftEffect $ dispatchStories StoriesFetchInit
-      eitherResp <- get json (apiEndpoint <> "react")
-      case eitherResp of
-        Right resp -> do
-          let maybeObj = resp.body ^? _Object
-              (maybeStories :: List (Maybe Story)) =
-                maybeObj ^.. traversed <<< ix "hits" <<< _Array <<< traversed <<< to jsonToStory
-              stories' = mapMaybe identity $ toUnfoldable maybeStories
-          liftEffect $ dispatchStories (StoriesFetchSuccess stories')
-        Left _ ->
-          liftEffect $ dispatchStories StoriesFetchFailure
+    useAff searchTerm $
+      when (not (String.null searchTerm)) do
+        liftEffect $ dispatchStories StoriesFetchInit
+        eitherResp <- get json (apiEndpoint <> searchTerm)
+        case eitherResp of
+          Right resp -> do
+            let maybeObj = resp.body ^? _Object
+                (maybeStories :: List (Maybe Story)) =
+                  maybeObj ^.. traversed <<< ix "hits" <<< _Array <<< traversed <<< to jsonToStory
+                stories' = mapMaybe identity $ toUnfoldable maybeStories
+            liftEffect $ dispatchStories (StoriesFetchSuccess stories')
+          Left _ ->
+            liftEffect $ dispatchStories StoriesFetchFailure
 
     let handleRemoveStory story =
           dispatchStories (RemoveStory story)
 
         handleSearch eventTargetValue =
           setSearchTerm \_ -> fromMaybe "" eventTargetValue
-
-        searchedStories =
-          Array.filter
-            (\story -> String.contains (Pattern searchTerm) story.title)
-            stories.data
 
     pure $
       R.div_
@@ -170,7 +166,7 @@ app = do
             then R.p_ [R.text "Loading ..."]
             else
               list
-                { list: searchedStories
+                { list: stories.data
                 , onRemoveItem: handleRemoveStory
                 }
         ]
