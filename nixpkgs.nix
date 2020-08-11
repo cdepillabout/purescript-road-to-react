@@ -19,6 +19,7 @@ let
         my-nodejs
         my-yarn
         purescript
+        purescript-psa
         spago
         nodePackages.parcel-bundler
       ];
