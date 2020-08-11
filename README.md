@@ -34,7 +34,7 @@ $ spago build
 $ parcel index.html
 ```
 
-`parcel` serves the app on `0.0.0.0:1234`.
+`parcel` serves the app on http://localhost:1234/.
 
 If you want to do development interactively, you can start `spago` in one
 terminal with a command line `spago build --watch`, and then start `parcel` in
