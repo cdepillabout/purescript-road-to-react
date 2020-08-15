@@ -40,7 +40,7 @@ import React.Basic.Hooks.Aff (useAff)
 import Web.DOM.Node (Node)
 import Web.HTML.HTMLElement (focus, fromNode)
 
-import ExampleGood (useFoo, useBar)
+import ExampleBad (useFoo, useBar)
 
 -------------
 -- Helpers --
