@@ -205,7 +205,11 @@ makeInputWithLabel =
             { htmlFor: id
             , children: children
             }
-        , R.text "&nbsp;"
+        , R.span
+            { dangerouslySetInnerHTML:
+                { __html: "&nbsp;"
+                }
+            }
         , R.input
             { id
             , onChange: capture targetValue onInputChange
